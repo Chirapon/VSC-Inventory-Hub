@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเบิกสินค้า FG & RM (Inventory Withdrawal)</title>
+    
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load React and ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Load Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-fade-in-up {
+            animation: fadeInUp 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const initialOrders = [
+            {
+                id: "3xqZwdXXyKbhLKmLTDB0",
+                type: "SALE",
+                documentName: "ใบสั่งขาย (Sales Order)",
+                customerName: "บจ. นาสโตะ (ประเทศไทย)",
+                group: "VSC",
+                status: "PENDING",
+                createdAt: "24/9/2569 09:14:57",
+                items: [
+                    { id: 1, customer: "บจ. นาสโตะ (ประเทศไทย)", name: "NITRIC ACID 68% (KOREA) (56 PAIL X 35 KG)", qty: 1960, unit: "KG", batch: "HCS-2607", location: "-", bpCatalog: "N/A", deliveryType: "จัดส่งปกติ" }
+                ]
+            },
+            {
+                id: "PRD-2609-001",
+                type: "PRODUCTION",
+                documentName: "ใบเบิกวัตถุดิบ (Raw Material Withdrawal)",
+                customerName: "ฝ่ายผลิต - Line A",
+                group: "Internal",
+                status: "COMPLETED",
+                createdAt: "25/9/2569 08:30:00",
+                items: [
+                    { id: 1, customer: "ฝ่ายผลิต - Line A", name: "SULFURIC ACID 98% (BULK)", qty: 5000, unit: "L", batch: "SA-2609A", location: "Tank-01", bpCatalog: "RM-SA98", deliveryType: "ท่อส่ง (Pipeline)" },
+                    { id: 2, customer: "ฝ่ายผลิต - Line A", name: "WATER (RO)", qty: 10000, unit: "L", batch: "-", location: "Tank-05", bpCatalog: "RM-H2O", deliveryType: "ท่อส่ง (Pipeline)" }
+                ]
+            }
+        ];
+
+        // Icons Component (Fixed missing closing quotes and tags)
+        const Icons = {
+            Print: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                    <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+            ),
+            Close: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            ),
+            Plus: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            ),
+            Box: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+            ),
+            Trash: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+            ),
+            Excel: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="8" y1="13" x2="16" y2="13"></line>
+                    <line x1="8" y1="17" x2="16" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+            ),
+            CheckCircle: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+            ),
+            ClipboardCheck: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                    <polyline points="9 14 11 16 15 12"></polyline>
+                </svg>
+            ),
+            ChartBar: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+            ),
+            Download: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+            ),
+            List: () => (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+            )
+        };
+
+        const parseThaiDate = (dateStr) => {
+            if (!dateStr) return new Date();
+            const [datePart] = dateStr.split(' ');
+            if (!datePart) return new Date();
+            const [day, month, year] = datePart.split('/');
+            const gregorianYear = parseInt(year) - 543;
+            return new Date(gregorianYear, parseInt(month) - 1, parseInt(day));
+        };
+
+        const Dashboard = ({ orders }) => {
+            const [exportStartDate, setExportStartDate] = useState('');
+            const [exportEndDate, setExportEndDate] = useState('');
+            const [exportType, setExportType] = useState('ALL');
+            const [exportMessage, setExportMessage] = useState({ text: '', type: '' });
+
+            const totalOrders = orders.length;
+            const pendingOrders = orders.filter(o => o.status === 'PENDING').length;
+            const completedOrders = orders.filter(o => o.status === 'COMPLETED').length;
+            
+            const typeStats = {
+                SALE: orders.filter(o => o.type === 'SALE').length,
+                PRODUCTION: orders.filter(o => o.type === 'PRODUCTION').length,
+                FG_TRANSFER: orders.filter(o => o.type === 'FG_TRANSFER').length,
+            };
+
+            const handleExportCSV = () => {
+                setExportMessage({ text: '', type: '' });
+                let filtered = orders.filter(o => exportType === 'ALL' || o.type === exportType);
+
+                if (exportStartDate) {
+                    const start = new Date(exportStartDate);
+                    start.setHours(0, 0, 0, 0);
+                    filtered = filtered.filter(o => parseThaiDate(o.createdAt) >= start);
+                }
+                
+                if (exportEndDate) {
+                    const end = new Date(exportEndDate);
+                    end.setHours(23, 59, 59, 999);
+                    filtered = filtered.filter(o => parseThaiDate(o.createdAt) <= end);
+                }
+
+                if (filtered.length === 0) {
+                    setExportMessage({ text: 'ไม่มีข้อมูลในเงื่อนไขที่เลือก', type: 'error' });
+                    setTimeout(() => setExportMessage({ text: '', type: '' }), 3000);
+                    return;
+                }
+
+                let csvContent = "\uFEFF";
+                csvContent += "รหัสเอกสาร,ประเภทเอกสาร,สถานะ,ลูกค้า/ผู้เบิก,วันที่สร้าง,ผู้จัดสินค้า,ลำดับรายการ,ชื่อสินค้า,จำนวน,หน่วย,Location,Batch No.,BP Catalog Name,ประเภทการจัดส่ง\n";
+
+                filtered.forEach(order => {
+                    const orderType = order.type === 'SALE' ? 'ขาย' : order.type === 'PRODUCTION' ? 'ผลิต' : 'ย้ายคลัง';
+                    const orderStatus = order.status === 'COMPLETED' ? 'จัดเสร็จสิ้น' : 'รอจัด';
+                    const customer = `"${order.customerName || '-'}"`;
+                    const picker = `"${order.pickerName || '-'}"`;
+                    
+                    order.items.forEach((item, index) => {
+                        const itemName = `"${item.name || '-'}"`;
+                        const row = [
+                            order.id, orderType, orderStatus, customer, order.createdAt, picker,
+                            index + 1, itemName, item.qty, item.unit, `"${item.location}"`, 
+                            `"${item.batch}"`, `"${item.bpCatalog}"`, `"${item.deliveryType}"`
+                        ];
+                        csvContent += row.join(",") + "\n";
+                    });
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `Inventory_Export_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                setExportMessage({ text: 'ส่งออกข้อมูลสำเร็จ!', type: 'success' });
+                setTimeout(() => setExportMessage({ text: '', type: '' }), 3000);
+            };
+
+            return (
+                <div className="space-y-6 animate-fade-in-up">
+                    {/* สถิติ */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h3 className="text-sm font-medium text-gray-500 mb-1">ใบเบิกทั้งหมด</h3>
+                            <div className="text-3xl font-bold text-gray-800">{totalOrders}</div>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-green-200 border-l-4 border-l-green-500">
+                            <h3 className="text-sm font-medium text-gray-500 mb-1">จัดเสร็จสิ้น (Completed)</h3>
+                            <div className="text-3xl font-bold text-green-600">{completedOrders}</div>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-yellow-200 border-l-4 border-l-yellow-500">
+                            <h3 className="text-sm font-medium text-gray-500 mb-1">รอจัดสินค้า (Pending)</h3>
+                            <div className="text-3xl font-bold text-yellow-600">{pendingOrders}</div>
+                        </div>
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-center">
+                            <div className="flex justify-between text-sm mb-2"><span className="text-blue-600 font-medium">ขาย (Sales)</span> <span>{typeStats.SALE}</span></div>
+                            <div className="flex justify-between text-sm mb-2"><span className="text-purple-600 font-medium">ผลิต (RM)</span> <span>{typeStats.PRODUCTION}</span></div>
+                            <div className="flex justify-between text-sm"><span className="text-amber-600 font-medium">ย้ายคลัง (FG)</span> <span>{typeStats.FG_TRANSFER}</span></div>
+                        </div>
+                    </div>
+
+                    {/* กล่อง Export */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <Icons.Download /> ส่งออกข้อมูล (Export CSV)
+                            </h2>
+                            {exportMessage.text && (
+                                <span className={`text-sm font-medium ${exportMessage.type === 'error' ? 'text-red-500' : 'text-green-600'}`}>
+                                    {exportMessage.text}
+                                </span>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ประเภทเอกสาร</label>
+                                <select 
+                                    value={exportType} 
+                                    onChange={e => setExportType(e.target.value)} 
+                                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                >
+                                    <option value="ALL">ทั้งหมด (All)</option>
+                                    <option value="SALE">ขาย (Sales Order)</option>
+                                    <option value="PRODUCTION">ผลิต (RM Withdrawal)</option>
+                                    <option value="FG_TRANSFER">ย้ายคลัง (FG Transfer)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ตั้งแต่วันที่</label>
+                                <input 
+                                    type="date" 
+                                    value={exportStartDate} 
+                                    onChange={e => setExportStartDate(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 outline-none" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">ถึงวันที่</label>
+                                <input 
+                                    type="date" 
+                                    value={exportEndDate} 
+                                    onChange={e => setExportEndDate(e.target.value)}
+                                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 outline-none" 
+                                />
+                            </div>
+                            <div>
+                                <button 
+                                    onClick={handleExportCSV}
+                                    className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium shadow-sm transition-colors"
+                                >
+                                    <Icons.Download /> Export CSV
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const PreviewModal = ({ order, onClose }) => {
+            if (!order) return null;
+
+            const [printTime, setPrintTime] = useState("");
+            useEffect(() => {
+                const now = new Date();
+                const thaiYear = now.getFullYear() + 543;
+                const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${thaiYear} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+                setPrintTime(dateStr);
+            }, []);
+
+            const getPrefix = () => {
+                if (order.type === 'SALE') return '$บจ. ';
+                return '';
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl flex flex-col my-auto relative animate-fade-in-up">
+                        
+                        <div className="flex justify-between items-center p-4 border-b border-gray-200">
+                            <h2 className="text-[1.1rem] font-bold text-[#4c42b5] flex items-center gap-1">
+                                พรีวิว{order.documentName.split(' ')[0]}: {getPrefix()}{order.customerName}
+                            </h2>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors p-1 rounded-full hover:bg-gray-100">
+                                <Icons.Close />
+                            </button>
+                        </div>
+
+                        <div className="p-8">
+                            <h1 className="text-2xl font-bold text-gray-800 mb-4">{order.documentName}</h1>
+                            <hr className="border-t-2 border-gray-800 mb-6" />
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-[15px]">
+                                <div>
+                                    <p className="mb-1"><strong>{order.type === 'SALE' ? 'ลูกค้า' : 'ผู้เบิก/แผนก'}:</strong> {order.customerName}</p>
+                                    <p className="mb-1"><strong>กลุ่มบริษัท:</strong> {order.group}</p>
+                                    <p><strong>{order.type === 'SALE' ? 'SO ID' : 'Doc ID'}:</strong> <span className="text-gray-600">{order.id}</span></p>
+                                </div>
+                                <div className="md:text-right text-gray-600">
+                                    <p className="mb-1"><strong>วันที่สร้าง:</strong> {order.createdAt}</p>
+                                    {order.status === 'COMPLETED' && order.pickerName && (
+                                        <p><strong>ผู้จัดสินค้า:</strong> <span className="text-orange-600 font-medium">{order.pickerName}</span></p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <hr className="border-t border-dashed border-gray-300 mb-6" />
+
+                            <h3 className="text-lg font-bold text-gray-800 mb-3">รายการสินค้า ({order.items.length} รายการ)</h3>
+                            
+                            <div className="overflow-x-auto custom-scrollbar border border-gray-200 rounded">
+                                <table className="w-full text-left border-collapse min-w-max text-[15px]">
+                                    <thead>
+                                        <tr className="bg-[#f8f9fa]">
+                                            <th className="border-b border-r border-gray-200 p-3 font-semibold text-center w-12">ลำดับ</th>
+                                            <th className="border-b border-r border-gray-200 p-3 font-semibold">รายการสินค้า</th>
+                                            <th className="border-b border-r border-gray-200 p-3 font-semibold text-center">จำนวน</th>
+                                            <th className="border-b border-r border-gray-200 p-3 font-semibold text-center">Unit</th>
+                                            <th className="border-b border-r border-gray-200 p-3 font-semibold text-center">Batch Att.</th>
+                                            <th className="border-b border-r border-gray-200 p-3 font-semibold text-center">Location</th>
+                                            <th className="border-b border-r border-gray-200 p-3 font-semibold">BP Catalog Name</th>
+                                            <th className="border-b border-gray-200 p-3 font-semibold">ประเภทการจัดส่ง</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {order.items.map((item, index) => (
+                                            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="border-b border-r border-gray-200 p-3 text-center">{index + 1}</td>
+                                                <td className="border-b border-r border-gray-200 p-3 text-gray-800">{item.name}</td>
+                                                <td className="border-b border-r border-gray-200 p-3 text-center">{item.qty.toLocaleString()}</td>
+                                                <td className="border-b border-r border-gray-200 p-3 text-center">{item.unit}</td>
+                                                <td className="border-b border-r border-gray-200 p-3 text-center">{item.batch}</td>
+                                                <td className="border-b border-r border-gray-200 p-3 text-center">{item.location}</td>
+                                                <td className="border-b border-r border-gray-200 p-3">{item.bpCatalog}</td>
+                                                <td className="border-b border-gray-200 p-3">{item.deliveryType}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="mt-6 text-[13px] text-gray-500">พิมพ์เมื่อ: {printTime}</div>
+                        </div>
+
+                        <div className="bg-[#f8f9fa] p-4 border-t border-gray-200 flex justify-end gap-3 rounded-b-lg">
+                            <button onClick={() => console.log('Print action triggered')} className="flex items-center gap-2 bg-[#28a745] hover:bg-[#218838] text-white font-medium px-5 py-2 rounded shadow-sm transition-colors">
+                                <Icons.Print /> พิมพ์ใบสั่งขาย
+                            </button>
+                            <button onClick={onClose} className="bg-[#e2e3e5] hover:bg-[#d3d4d5] text-gray-800 font-medium px-6 py-2 rounded shadow-sm transition-colors">
+                                ปิด
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const PickingModal = ({ order, onClose, onComplete }) => {
+            const [pickedItems, setPickedItems] = useState([]);
+            const [pickerName, setPickerName] = useState('');
+
+            const handleCheck = (itemId) => {
+                if (pickedItems.includes(itemId)) {
+                    setPickedItems(pickedItems.filter(id => id !== itemId));
+                } else {
+                    setPickedItems([...pickedItems, itemId]);
+                }
+            };
+
+            const isAllPicked = pickedItems.length === order.items.length;
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl flex flex-col my-auto relative animate-fade-in-up">
+                        
+                        <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-orange-500 rounded-t-lg text-white">
+                            <h2 className="text-[1.1rem] font-bold flex items-center gap-2">
+                                <Icons.ClipboardCheck /> หน้าจอจัดสินค้า (Picking Screen)
+                            </h2>
+                            <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors p-1">
+                                <Icons.Close />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="flex justify-between items-end mb-4">
+                                <div>
+                                    <h1 className="text-xl font-bold text-gray-800 mb-1">{order.documentName}</h1>
+                                    <p className="text-sm text-gray-600">ID: {order.id} | ลูกค้า/ผู้รับ: {order.customerName}</p>
+                                </div>
+                                <div className="text-sm font-semibold bg-orange-100 text-orange-800 px-3 py-1 rounded-full border border-orange-200 shadow-sm">
+                                    ความคืบหน้า: {pickedItems.length} / {order.items.length} รายการ
+                                </div>
+                            </div>
+                            
+                            {/* ช่องกรอกชื่อผู้จัดสินค้า */}
+                            <div className="mb-4 flex items-center gap-3 bg-orange-50 p-4 rounded-lg border border-orange-100">
+                                <label className="text-sm font-bold text-orange-800 whitespace-nowrap">ชื่อ/รหัส พนักงานผู้จัดสินค้า <span className="text-red-500">*</span> :</label>
+                                <input 
+                                    type="text" 
+                                    value={pickerName}
+                                    onChange={(e) => setPickerName(e.target.value)}
+                                    placeholder="ระบุชื่อหรือรหัสพนักงาน..."
+                                    className="flex-1 max-w-md border border-orange-200 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                />
+                            </div>
+
+                            <div className="overflow-x-auto custom-scrollbar border border-gray-200 rounded shadow-sm">
+                                <table className="w-full text-left border-collapse min-w-max text-[15px]">
+                                    <thead>
+                                        <tr className="bg-gray-100">
+                                            <th className="border-b border-r border-gray-300 p-3 font-semibold text-center w-16">สถานะ</th>
+                                            <th className="border-b border-r border-gray-300 p-3 font-semibold text-center w-12">ลำดับ</th>
+                                            <th className="border-b border-r border-gray-300 p-3 font-semibold">รายการสินค้า</th>
+                                            <th className="border-b border-r border-gray-300 p-3 font-semibold text-center">จำนวน</th>
+                                            <th className="border-b border-r border-gray-300 p-3 font-semibold text-center">Unit</th>
+                                            <th className="border-b border-r border-gray-300 p-3 font-semibold text-center">Batch Att.</th>
+                                            <th className="border-b border-r border-gray-300 p-3 font-semibold text-center">Location</th>
+                                            <th className="border-b border-r border-gray-300 p-3 font-semibold">BP Catalog Name</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {order.items.map((item, index) => {
+                                            const isPicked = pickedItems.includes(item.id);
+                                            return (
+                                                <tr key={item.id} onClick={() => handleCheck(item.id)} className={`cursor-pointer transition-colors ${isPicked ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                                                    <td className="border-b border-r border-gray-200 p-3 text-center">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={isPicked}
+                                                            onChange={() => {}} 
+                                                            className="w-5 h-5 text-orange-500 rounded border-gray-300 focus:ring-orange-500 cursor-pointer pointer-events-none"
+                                                        />
+                                                    </td>
+                                                    <td className={`border-b border-r border-gray-200 p-3 text-center ${isPicked ? 'text-gray-400 line-through' : ''}`}>{index + 1}</td>
+                                                    <td className={`border-b border-r border-gray-200 p-3 font-medium ${isPicked ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.name}</td>
+                                                    <td className={`border-b border-r border-gray-200 p-3 text-center font-bold ${isPicked ? 'text-gray-400 line-through' : 'text-blue-600'}`}>{item.qty.toLocaleString()}</td>
+                                                    <td className={`border-b border-r border-gray-200 p-3 text-center ${isPicked ? 'text-gray-400 line-through' : ''}`}>{item.unit}</td>
+                                                    <td className={`border-b border-r border-gray-200 p-3 text-center ${isPicked ? 'text-gray-400' : ''}`}>{item.batch}</td>
+                                                    <td className={`border-b border-r border-gray-200 p-3 text-center ${isPicked ? 'text-gray-400' : 'text-red-600 font-semibold'}`}>{item.location}</td>
+                                                    <td className={`border-b border-r border-gray-200 p-3 ${isPicked ? 'text-gray-400' : 'text-gray-800'}`}>{item.bpCatalog}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 border-t border-gray-200 flex justify-between items-center rounded-b-lg">
+                            <p className="text-sm text-gray-500 font-medium">
+                                * <span className="text-orange-500">คลิกที่แถวของสินค้า</span> เพื่อติ๊กถูกเมื่อหยิบสินค้าครบตามจำนวน
+                            </p>
+                            <div className="flex gap-3">
+                                <button onClick={onClose} className="px-6 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100 transition-colors">
+                                    ปิดหน้าต่าง
+                                </button>
+                                <button 
+                                    disabled={!isAllPicked || !pickerName.trim()} 
+                                    onClick={() => onComplete(order.id, pickerName.trim())}
+                                    className="flex items-center gap-2 px-6 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
+                                >
+                                    <Icons.CheckCircle /> จัดสินค้าเสร็จสิ้น
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const CreateOrderModal = ({ onClose, onSave }) => {
+            const [type, setType] = useState('SALE');
+            const [customerName, setCustomerName] = useState('');
+            const [group, setGroup] = useState('VSC');
+            const [items, setItems] = useState([]);
+            const [pasteMessage, setPasteMessage] = useState('');
+
+            // Function to handle pasting data from Excel
+            const handlePaste = (e) => {
+                e.preventDefault();
+                const clipboardData = e.clipboardData || window.clipboardData;
+                const pastedData = clipboardData.getData('Text');
+                
+                if (!pastedData) return;
+
+                // ไม่ Trim ทั้งหมด เพื่อรักษา Tab ด้านหน้า (เช่นกรณีเซลล์ว่างจากการ Merge)
+                const rows = pastedData.split('\n'); 
+                
+                let lastCustomer = "";
+                let newItems = [];
+
+                for (let i = 0; i < rows.length; i++) {
+                    let row = rows[i].replace(/\r/g, ''); // ลบอักขระขึ้นบรรทัดใหม่ที่ซ่อนอยู่
+                    if (row.trim() === '') continue;
+
+                    let cols = row.split('\t');
+                    if (cols.length < 2) continue; // ถ้าข้อมูลน้อยไปให้ข้าม
+
+                    let customer = "";
+                    let name = "";
+                    let qtyIdx = -1;
+
+                    // ฟังก์ชันเช็คว่าเป็นตัวเลขหรือไม่ (รองรับแบบมี comma เช่น 1,500)
+                    const isNumeric = (val) => {
+                        if (!val) return false;
+                        const cleanVal = val.replace(/,/g, '').trim();
+                        return cleanVal !== '' && !isNaN(parseFloat(cleanVal)) && isFinite(cleanVal);
+                    };
+
+                    // วิเคราะห์โครงสร้างคอลัมน์อัตโนมัติ
+                    const isFirstColNumber = cols[0] && /^\d+$/.test(cols[0].trim());
+
+                    if (isFirstColNumber && isNumeric(cols[3])) {
+                        // รูปแบบ: ลำดับ | ลูกค้า | สินค้า | จำนวน
+                        qtyIdx = 3;
+                        customer = cols[1] ? cols[1].trim() : "";
+                        name = cols[2] ? cols[2].trim() : "";
+                    } else if (isNumeric(cols[2])) {
+                        // รูปแบบ: ลูกค้า | สินค้า | จำนวน (ไม่ได้ Copy ลำดับมา)
+                        qtyIdx = 2;
+                        customer = cols[0] ? cols[0].trim() : "";
+                        name = cols[1] ? cols[1].trim() : "";
+                    } else if (isNumeric(cols[1])) {
+                        // รูปแบบ: สินค้า | จำนวน (ไม่มีทั้งลำดับและลูกค้า)
+                        qtyIdx = 1;
+                        customer = "";
+                        name = cols[0] ? cols[0].trim() : "";
+                    } else {
+                        // ค่าเริ่มต้น (เผื่อกรณีดักจับไม่ได้)
+                        qtyIdx = 3;
+                        customer = cols[1] ? cols[1].trim() : "";
+                        name = cols[2] ? cols[2].trim() : "";
+                    }
+
+                    // จดจำชื่อลูกค้า: ถ้าระบบเจอช่องว่าง (Merge Cell) ให้เอาชื่อลูกค้าก่อนหน้ามาใส่
+                    if (customer === "" || customer === "\"\"" || customer === "-") {
+                        customer = lastCustomer;
+                    } else {
+                        lastCustomer = customer;
+                    }
+
+                    if (name === "") continue; // ถ้าไม่มีชื่อสินค้า ให้ข้าม
+
+                    newItems.push({
+                        id: Date.now() + Math.random() + i,
+                        customer: customer,
+                        name: name,
+                        qty: cols[qtyIdx] ? parseFloat(cols[qtyIdx].replace(/,/g, '')) || 0 : 0,
+                        unit: cols[qtyIdx + 1] ? cols[qtyIdx + 1].trim() : '-',
+                        batch: cols[qtyIdx + 2] ? cols[qtyIdx + 2].trim() : '-',
+                        location: cols[qtyIdx + 3] ? cols[qtyIdx + 3].trim() : '-',
+                        bpCatalog: cols[qtyIdx + 4] ? cols[qtyIdx + 4].trim() : '-',
+                        deliveryType: cols[qtyIdx + 5] ? cols[qtyIdx + 5].trim() : '-'
+                    });
+                }
+
+                if (newItems.length > 0) {
+                    setItems(prev => [...prev, ...newItems]);
+                    
+                    // อัปเดตข้อมูลไปยังช่อง "ชื่อลูกค้า" ด้านบนฟอร์มหลัก
+                    const firstCustomer = newItems.find(item => item.customer && item.customer !== '')?.customer;
+                    if (firstCustomer) {
+                        setCustomerName(firstCustomer); 
+                    }
+
+                    setPasteMessage(`เพิ่มสำเร็จ ${newItems.length} รายการ`);
+                    setTimeout(() => setPasteMessage(''), 3000);
+                }
+            };
+
+            const handleDeleteItem = (idToRemove) => {
+                setItems(items.filter(item => item.id !== idToRemove));
+            };
+
+            const handleItemChange = (id, field, value) => {
+                setItems(items.map(item => 
+                    item.id === id ? { ...item, [field]: value } : item
+                ));
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!customerName || items.length === 0) return;
+
+                let documentName = "ใบสั่งขาย (Sales Order)";
+                if (type === 'PRODUCTION') documentName = "ใบเบิกวัตถุดิบ (Raw Material Withdrawal)";
+                if (type === 'FG_TRANSFER') documentName = "ใบเบิกสินค้าสำเร็จรูป (FG Transfer)";
+
+                const now = new Date();
+                const thaiYear = now.getFullYear() + 543;
+                const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${thaiYear} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+                const newDoc = {
+                    id: (type === 'SALE' ? 'SO-' : 'DOC-') + Math.floor(Math.random() * 1000000),
+                    type,
+                    documentName,
+                    customerName,
+                    group,
+                    status: 'PENDING',
+                    createdAt: dateStr,
+                    items
+                };
+
+                onSave(newDoc);
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl flex flex-col my-auto relative animate-fade-in-up">
+                        
+                        <div className="flex justify-between items-center p-4 border-b border-gray-200">
+                            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                <Icons.Plus /> สร้างใบเบิกใหม่
+                            </h2>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors p-1 rounded-full hover:bg-gray-100">
+                                <Icons.Close />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-6">
+                            
+                            {/* General Info */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">ประเภทเอกสาร</label>
+                                    <select value={type} onChange={e => setType(e.target.value)} className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                        <option value="SALE">ขาย (Sales Order)</option>
+                                        <option value="PRODUCTION">ผลิต (RM Withdrawal)</option>
+                                        <option value="FG_TRANSFER">ย้ายคลัง (FG Transfer)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{type === 'SALE' ? 'ชื่อลูกค้า' : 'แผนก/ผู้เบิก'}</label>
+                                    <input type="text" required value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="เช่น บจ. นาสโตะ หรือ ฝ่ายผลิต" className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">กลุ่มบริษัท</label>
+                                    <input type="text" value={group} onChange={e => setGroup(e.target.value)} className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                                </div>
+                            </div>
+
+                            {/* Excel Paste Area */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                                        <Icons.Excel /> เพิ่มรายการสินค้าจาก Excel
+                                    </h3>
+                                    {pasteMessage && <span className="text-green-600 font-bold text-sm animate-pulse">{pasteMessage}</span>}
+                                </div>
+                                <p className="text-xs text-blue-600 mb-2">
+                                    เรียงคอลัมน์ใน Excel ตามนี้: <b>ลำดับ | ลูกค้า | รายการสินค้า | จำนวน | Unit | Batch Att. | Location | BP Catalog Name | ประเภทการจัดส่ง</b> <br/>
+                                    จากนั้นลากคลุมข้อมูล Copy (Ctrl+C) และนำมาคลิกวาง (Ctrl+V) ในช่องด้านล่าง (* ระบบจะดึงชื่อลูกค้าไปไว้ด้านบนและซ่อนคอลัมน์ลูกค้าในตารางอัตโนมัติ)
+                                </p>
+                                <textarea 
+                                    onPaste={handlePaste}
+                                    placeholder="คลิกที่นี่ แล้วกด Ctrl+V เพื่อวางข้อมูลจาก Excel" 
+                                    className="w-full h-16 border border-blue-300 rounded p-2 text-sm bg-white resize-none focus:ring-2 focus:ring-blue-500 outline-none placeholder-blue-300"
+                                    value="" // Always empty to just act as a paste receiver
+                                    onChange={() => {}} // Dummy to avoid warnings
+                                ></textarea>
+                            </div>
+
+                            {/* Items Table */}
+                            <div>
+                                <div className="flex justify-between items-center mb-2">
+                                    <h3 className="text-sm font-bold text-gray-800">รายการสินค้า ({items.length})</h3>
+                                    {items.length > 0 && (
+                                        <button type="button" onClick={() => setItems([])} className="text-red-500 text-xs hover:underline">ล้างข้อมูลทั้งหมด</button>
+                                    )}
+                                </div>
+                                <div className="overflow-x-auto custom-scrollbar border border-gray-200 rounded bg-white min-h-[150px] max-h-[300px]">
+                                    <table className="w-full text-left border-collapse min-w-max text-[14px]">
+                                        <thead className="sticky top-0 bg-gray-100 shadow-sm z-10">
+                                            <tr>
+                                                <th className="border-b border-r border-gray-200 p-2 font-semibold text-center w-10">ลำดับ</th>
+                                                <th className="border-b border-r border-gray-200 p-2 font-semibold">รายการสินค้า</th>
+                                                <th className="border-b border-r border-gray-200 p-2 font-semibold text-center w-24">จำนวน</th>
+                                                <th className="border-b border-r border-gray-200 p-2 font-semibold text-center w-20">Unit</th>
+                                                <th className="border-b border-r border-gray-200 p-2 font-semibold text-center w-28">Batch Att.</th>
+                                                <th className="border-b border-r border-gray-200 p-2 font-semibold text-center w-24">Location</th>
+                                                <th className="border-b border-r border-gray-200 p-2 font-semibold">BP Catalog Name</th>
+                                                <th className="border-b border-r border-gray-200 p-2 font-semibold w-32">ประเภทการจัดส่ง</th>
+                                                <th className="border-b border-gray-200 p-2 font-semibold text-center w-10">ลบ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {items.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="9" className="p-8 text-center text-gray-400">
+                                                        ยังไม่มีรายการสินค้า กรุณาวางข้อมูลจาก Excel
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                items.map((item, index) => (
+                                                    <tr key={item.id} className="hover:bg-gray-50 focus-within:bg-blue-50 transition-colors">
+                                                        <td className="border-b border-r border-gray-200 p-2 text-center">{index + 1}</td>
+                                                        <td className="border-b border-r border-gray-200 p-1">
+                                                            <input type="text" value={item.name} onChange={e => handleItemChange(item.id, 'name', e.target.value)} className="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-[13px]" />
+                                                        </td>
+                                                        <td className="border-b border-r border-gray-200 p-1 text-center">
+                                                            <input type="text" value={item.qty} onChange={e => handleItemChange(item.id, 'qty', e.target.value)} className="w-full text-center bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-[13px]" />
+                                                        </td>
+                                                        <td className="border-b border-r border-gray-200 p-1 text-center">
+                                                            <input type="text" value={item.unit} onChange={e => handleItemChange(item.id, 'unit', e.target.value)} className="w-full text-center bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-[13px]" />
+                                                        </td>
+                                                        <td className="border-b border-r border-gray-200 p-1 text-center">
+                                                            <input type="text" value={item.batch} onChange={e => handleItemChange(item.id, 'batch', e.target.value)} className="w-full text-center bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-[13px]" />
+                                                        </td>
+                                                        <td className="border-b border-r border-gray-200 p-1 text-center">
+                                                            <input type="text" value={item.location} onChange={e => handleItemChange(item.id, 'location', e.target.value)} className="w-full text-center bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-[13px]" />
+                                                        </td>
+                                                        <td className="border-b border-r border-gray-200 p-1">
+                                                            <input type="text" value={item.bpCatalog} onChange={e => handleItemChange(item.id, 'bpCatalog', e.target.value)} className="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-[13px]" />
+                                                        </td>
+                                                        <td className="border-b border-r border-gray-200 p-1">
+                                                            <input type="text" value={item.deliveryType} onChange={e => handleItemChange(item.id, 'deliveryType', e.target.value)} className="w-full bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-white rounded px-2 py-1 outline-none text-[13px]" />
+                                                        </td>
+                                                        <td className="border-b border-gray-200 p-2 text-center">
+                                                            <button type="button" onClick={() => handleDeleteItem(item.id)} className="text-red-400 hover:text-red-600 p-1">
+                                                                <Icons.Trash />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                                <button type="button" onClick={onClose} className="px-6 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 transition-colors">
+                                    ยกเลิก
+                                </button>
+                                <button type="submit" disabled={items.length === 0 || !customerName} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                    บันทึกข้อมูล
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [orders, setOrders] = useState(initialOrders);
+            const [selectedOrder, setSelectedOrder] = useState(null);
+            const [pickingOrder, setPickingOrder] = useState(null);
+            const [isCreating, setIsCreating] = useState(false);
+            const [filter, setFilter] = useState('ALL');
+            const [role, setRole] = useState('ADMIN'); // 'ADMIN' or 'WAREHOUSE'
+            const [view, setView] = useState('LIST'); // 'LIST' or 'DASHBOARD'
+
+            const filteredOrders = orders.filter(o => filter === 'ALL' || o.type === filter);
+
+            const getBadgeColor = (type) => {
+                switch(type) {
+                    case 'SALE': return 'bg-blue-100 text-blue-800 border-blue-200';
+                    case 'PRODUCTION': return 'bg-purple-100 text-purple-800 border-purple-200';
+                    case 'FG_TRANSFER': return 'bg-amber-100 text-amber-800 border-amber-200';
+                    default: return 'bg-gray-100 text-gray-800';
+                }
+            };
+
+            const getStatusBadge = (status) => {
+                if (status === 'COMPLETED') return <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-green-100 text-green-800 border-green-200 flex items-center gap-1 w-fit"><Icons.CheckCircle /> จัดเสร็จสิ้น</span>;
+                return <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-yellow-100 text-yellow-800 border-yellow-200 w-fit">รอจัดสินค้า</span>;
+            };
+
+            const handleSaveNewOrder = (newOrder) => {
+                setOrders([newOrder, ...orders]);
+                setIsCreating(false);
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col bg-gray-50">
+                    <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between h-16 items-center">
+                                <div className="flex items-center gap-3">
+                                    <Icons.Box />
+                                    <span className="font-bold text-xl text-gray-900 tracking-tight">VSC Inventory Hub</span>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <span className="text-sm text-gray-500 hidden sm:block">ระบบเบิกสินค้า FG & RM</span>
+                                    <div className="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
+                                        <button onClick={() => setRole('ADMIN')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${role === 'ADMIN' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}>แอดมิน</button>
+                                        <button onClick={() => setRole('WAREHOUSE')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${role === 'WAREHOUSE' ? 'bg-white shadow-sm text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>คลังสินค้า</button>
+                                    </div>
+                                    <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md transition-colors ${role === 'ADMIN' ? 'bg-blue-600' : 'bg-orange-500'}`}>
+                                        {role === 'ADMIN' ? 'A' : 'W'}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Navigation Tabs for Admin */}
+                            {role === 'ADMIN' && (
+                                <div className="flex gap-6 mt-2 pb-2">
+                                    <button 
+                                        onClick={() => setView('LIST')} 
+                                        className={`pb-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${view === 'LIST' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <Icons.List /> รายการใบเบิก
+                                    </button>
+                                    <button 
+                                        onClick={() => setView('DASHBOARD')} 
+                                        className={`pb-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${view === 'DASHBOARD' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <Icons.ChartBar /> แดชบอร์ด & รายงาน
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </nav>
+
+                    <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        
+                        {role === 'ADMIN' && view === 'DASHBOARD' ? (
+                            <Dashboard orders={orders} />
+                        ) : (
+                            <>
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                                    <div>
+                                        <h1 className="text-2xl font-bold text-gray-900">{role === 'ADMIN' ? 'รายการใบเบิกสินค้า' : 'หน้าจอคลังสินค้า (รอจัด)'}</h1>
+                                        <p className="text-sm text-gray-500 mt-1">{role === 'ADMIN' ? 'จัดการคำสั่งขาย และใบเบิกวัตถุดิบ/สินค้าสำเร็จรูป' : 'ตรวจสอบและจัดเตรียมสินค้าตามใบสั่งจากแอดมิน'}</p>
+                                    </div>
+                                    {role === 'ADMIN' && (
+                                        <button 
+                                            onClick={() => setIsCreating(true)}
+                                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition-colors"
+                                        >
+                                            <Icons.Plus /> สร้างใบเบิกใหม่
+                                        </button>
+                                    )}
+                                </div>
+
+                        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 custom-scrollbar">
+                            {['ALL', 'SALE', 'PRODUCTION', 'FG_TRANSFER'].map(fType => (
+                                <button
+                                    key={fType}
+                                    onClick={() => setFilter(fType)}
+                                    className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors border ${
+                                        filter === fType 
+                                        ? 'bg-gray-800 text-white border-gray-800 shadow-sm' 
+                                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    {fType === 'ALL' ? 'ทั้งหมด' : 
+                                     fType === 'SALE' ? 'ขาย (Sales)' : 
+                                     fType === 'PRODUCTION' ? 'ผลิต (RM)' : 'ย้ายคลัง (FG)'}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="bg-white shadow-sm rounded-xl border border-gray-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 text-sm">
+                                            <th className="p-4 font-semibold">รหัสเอกสาร (ID)</th>
+                                            <th className="p-4 font-semibold">สถานะ</th>
+                                            <th className="p-4 font-semibold">ประเภท</th>
+                                            <th className="p-4 font-semibold">ลูกค้า / ผู้เบิก</th>
+                                            <th className="p-4 font-semibold">วันที่สร้าง</th>
+                                            <th className="p-4 font-semibold text-center">จำนวนรายการ</th>
+                                            <th className="p-4 font-semibold text-center">การจัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 text-sm">
+                                        {filteredOrders.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="6" className="p-8 text-center text-gray-500">
+                                                    ไม่มีข้อมูลรายการในหมวดหมู่นี้
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredOrders.map((order) => (
+                                                <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="p-4 font-medium text-gray-900">{order.id}</td>
+                                                    <td className="p-4">
+                                                        {getStatusBadge(order.status)}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getBadgeColor(order.type)}`}>
+                                                            {order.type === 'SALE' ? 'Sales Order' : order.type === 'PRODUCTION' ? 'RM Withdraw' : 'FG Transfer'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="font-medium text-gray-800">{order.customerName}</div>
+                                                        <div className="text-xs text-gray-500">{order.group}</div>
+                                                    </td>
+                                                    <td className="p-4 text-gray-600">{order.createdAt}</td>
+                                                    <td className="p-4 text-center">
+                                                        <span className="bg-gray-100 text-gray-700 py-1 px-3 rounded-full text-xs font-bold">
+                                                            {order.items.length}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        {role === 'WAREHOUSE' ? (
+                                                            order.status === 'PENDING' ? (
+                                                                <button 
+                                                                    onClick={() => setPickingOrder(order)}
+                                                                    className="text-white font-medium px-4 py-1.5 bg-orange-500 hover:bg-orange-600 rounded-md transition-colors shadow-sm text-sm"
+                                                                >
+                                                                    เริ่มจัดสินค้า
+                                                                </button>
+                                                            ) : (
+                                                                <button 
+                                                                    onClick={() => setSelectedOrder(order)}
+                                                                    className="text-gray-600 hover:text-gray-900 font-medium hover:underline px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors text-sm"
+                                                                >
+                                                                    ดูรายละเอียด
+                                                                </button>
+                                                            )
+                                                        ) : (
+                                                            <button 
+                                                                onClick={() => setSelectedOrder(order)}
+                                                                className="text-blue-600 hover:text-blue-800 font-medium hover:underline px-3 py-1 bg-blue-50 hover:bg-blue-100 rounded transition-colors"
+                                                            >
+                                                                เปิดดูพรีวิว
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                            </>
+                        )}
+                    </main>
+
+                    {/* Modals */}
+                    {selectedOrder && (
+                        <PreviewModal 
+                            order={selectedOrder} 
+                            onClose={() => setSelectedOrder(null)} 
+                        />
+                    )}
+
+                    {isCreating && (
+                        <CreateOrderModal 
+                            onClose={() => setIsCreating(false)}
+                            onSave={handleSaveNewOrder}
+                        />
+                    )}
+
+                    {pickingOrder && (
+                        <PickingModal 
+                            order={pickingOrder} 
+                            onClose={() => setPickingOrder(null)}
+                            onComplete={(orderId, pickerName) => {
+                                setOrders(orders.map(o => o.id === orderId ? {...o, status: 'COMPLETED', pickerName: pickerName} : o));
+                                setPickingOrder(null);
+                            }}
+                        />
+                    )}
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
