@@ -18,37 +18,7 @@
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl flex flex-col my-auto relative animate-fade-in-up modal-print-area">
-    @media print {
-  /* ซ่อนทุกอย่างบนหน้าเว็บก่อน */
-  body * {
-    visibility: hidden;
-  }
-  
-  /* แสดงเฉพาะเนื้อหาในส่วนพรีวิวใบเบิกเท่านั้น */
-  .modal-print-area, .modal-print-area * {
-    visibility: visible;
-  }
-  
-  /* จัดตำแหน่งหน้ากระดาษให้เต็มพื้นที่พอดี */
-  .modal-print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    box-shadow: none !important;
-    background: white !important;
-  }
 
-  /* ซ่อนปุ่มกากบาทปิด หรือปุ่มกดต่างๆ ไม่ให้ติดลงในกระดาษพิมพ์ */
-  .no-print {
-    display: none !important;
-  }
-}
-    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors p-1 rounded-full hover:bg-gray-100 no-print">
-  <Icons.Close />
 </button>
     <style>
         body {
